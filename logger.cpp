@@ -23,6 +23,7 @@ unsigned Duration = 0;
 typedef struct TChannelDescription_ {
 	int divider;
 	int id;
+	int next_tick;
 } TChannelDescription;
 TChannelDescription Channels[MAX_CHANNELS];
 // dividers for all data acquisition frequencies
@@ -85,7 +86,7 @@ int do_decode(unsigned tick, int len)
 	int i;
 	for (i = 0; i < ChannelsNum && len > 0; i++) // channels are already sorted in frequency descending and ID ascending order
 	{
-		if (tick % Channels[i].divider == 0)
+		if (tick == Channels[i].next_tick)
 		{
 			int value;
 			size_t read;
@@ -98,6 +99,7 @@ int do_decode(unsigned tick, int len)
 			Outputs[i].data[Outputs[i].n] = value;
 			Outputs[i].n++;
 			len -= sizeof(value);
+			Channels[i].next_tick += Channels[i].divider;
 		}
 	}
 	return len;
@@ -167,10 +169,12 @@ void test_decode()
 	}
 
 	// get the size of 1s block
+	// also initialize tick time when the channel is logged within the block
 	size1s = 0;
 	for (i = 0; i < ChannelsNum; i++)
 	{
 		size1s += (BASE_F / Channels[i].divider) * sizeof(int);
+		Channels[i].next_tick = (start + Channels[i].divider - 1) / Channels[i].divider * Channels[i].divider;
 	}
 	// get duration estimate (rounded up to 1000ms)
 	duration = ((block_len + size1s - 1) / size1s) * BASE_F;
